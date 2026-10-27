@@ -1,4 +1,6 @@
 import sqlite3
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -34,23 +36,43 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     return connection
 
 
+@contextmanager
+def session(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Yield a connection that commits on success, rolls back on error, and always closes."""
+    connection = connect(db_path)
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def initialize(db_path: Path | None = None) -> None:
-    with connect(db_path) as connection:
+    with session(db_path) as connection:
         connection.executescript(SCHEMA)
 
 
 def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
-    with connect() as connection:
+    with closing(connect()) as connection:
         row = connection.execute(query, params).fetchone()
         return dict(row) if row else None
 
 
 def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
-    with connect() as connection:
+    with closing(connect()) as connection:
         return [dict(row) for row in connection.execute(query, params).fetchall()]
 
 
 def execute(query: str, params: tuple[Any, ...] = ()) -> int:
-    with connect() as connection:
+    with session() as connection:
         cursor = connection.execute(query, params)
         return int(cursor.lastrowid or 0)
+
+
+def execute_affected(query: str, params: tuple[Any, ...] = ()) -> int:
+    """Run a write statement and return the number of rows it affected."""
+    with session() as connection:
+        return int(connection.execute(query, params).rowcount)

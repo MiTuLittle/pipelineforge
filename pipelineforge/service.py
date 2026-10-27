@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from pipelineforge.database import execute, fetch_all, fetch_one
+from pipelineforge.database import execute, execute_affected, fetch_all, fetch_one
 
 ALLOWED_TRANSITIONS = {
     "pending": {"running", "failed"},
@@ -49,15 +49,22 @@ def get_run(run_id: int) -> dict:
 
 def transition_run(run_id: int, target: str, detail: str | None) -> dict:
     run = get_run(run_id)
-    if target not in ALLOWED_TRANSITIONS[run["status"]]:
+    current = run["status"]
+    if target not in ALLOWED_TRANSITIONS[current]:
         raise HTTPException(
             status_code=409,
-            detail=f"Invalid transition: {run['status']} -> {target}",
+            detail=f"Invalid transition: {current} -> {target}",
         )
-    execute(
+    # Guard the update with the observed status so concurrent transitions cannot both win.
+    affected = execute_affected(
         """UPDATE release_runs
            SET status = ?, detail = ?, updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?""",
-        (target, detail, run_id),
+           WHERE id = ? AND status = ?""",
+        (target, detail, run_id, current),
     )
+    if affected != 1:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Run state changed concurrently, expected {current}; retry the transition",
+        )
     return get_run(run_id)
