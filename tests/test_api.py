@@ -26,9 +26,7 @@ def test_project_and_release_lifecycle(tmp_path, monkeypatch):
         )
         assert response.status_code == 201
         project = response.json()
-        response = client.post(
-            f"/api/v1/projects/{project['id']}/runs", json={"git_ref": "main"}
-        )
+        response = client.post(f"/api/v1/projects/{project['id']}/runs", json={"git_ref": "main"})
         assert response.status_code == 201
         run = response.json()
         assert run["status"] == "pending"
@@ -59,12 +57,8 @@ def test_invalid_transition_is_rejected(tmp_path, monkeypatch):
             "/api/v1/projects",
             json={"name": "demo-api", "git_url": "https://github.com/example/demo-api"},
         ).json()
-        run = client.post(
-            f"/api/v1/projects/{project['id']}/runs", json={"git_ref": "main"}
-        ).json()
-        response = client.post(
-            f"/api/v1/runs/{run['id']}/transition", json={"status": "succeeded"}
-        )
+        run = client.post(f"/api/v1/projects/{project['id']}/runs", json={"git_ref": "main"}).json()
+        response = client.post(f"/api/v1/runs/{run['id']}/transition", json={"status": "succeeded"})
     assert response.status_code == 409
 
 

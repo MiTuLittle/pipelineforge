@@ -12,9 +12,7 @@ ALLOWED_TRANSITIONS = {
 
 def create_project(name: str, git_url: str) -> dict:
     try:
-        project_id = execute(
-            "INSERT INTO projects(name, git_url) VALUES (?, ?)", (name, git_url)
-        )
+        project_id = execute("INSERT INTO projects(name, git_url) VALUES (?, ?)", (name, git_url))
     except Exception as exc:
         if "UNIQUE constraint failed" in str(exc):
             raise HTTPException(status_code=409, detail="Project name already exists") from exc
