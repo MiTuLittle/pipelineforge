@@ -1,8 +1,9 @@
+import sqlite3
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 
-from pipelineforge.database import initialize
+from pipelineforge.database import initialize, ping
 from pipelineforge.schemas import ProjectCreate, ProjectRead, RunCreate, RunRead, RunTransition
 from pipelineforge.service import (
     create_project,
@@ -29,6 +30,13 @@ app = FastAPI(
 
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
+    try:
+        ping()
+    except (OSError, sqlite3.Error) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable",
+        ) from exc
     return {"status": "ok"}
 
 

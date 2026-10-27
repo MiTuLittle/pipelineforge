@@ -1,3 +1,5 @@
+import sqlite3
+
 from fastapi import HTTPException
 
 from pipelineforge.database import execute, execute_affected, fetch_all, fetch_one
@@ -13,8 +15,8 @@ ALLOWED_TRANSITIONS = {
 def create_project(name: str, git_url: str) -> dict:
     try:
         project_id = execute("INSERT INTO projects(name, git_url) VALUES (?, ?)", (name, git_url))
-    except Exception as exc:
-        if "UNIQUE constraint failed" in str(exc):
+    except sqlite3.IntegrityError as exc:
+        if exc.sqlite_errorcode == sqlite3.SQLITE_CONSTRAINT_UNIQUE:
             raise HTTPException(status_code=409, detail="Project name already exists") from exc
         raise
     project = fetch_one("SELECT * FROM projects WHERE id = ?", (project_id,))

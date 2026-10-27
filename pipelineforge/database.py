@@ -26,13 +26,19 @@ CREATE TABLE IF NOT EXISTS release_runs (
 """
 
 
+BUSY_TIMEOUT_SECONDS = 5.0
+
+
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
     path = db_path or settings.db_path
     if str(path) != ":memory:":
         path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(str(path), check_same_thread=False)
+    connection = sqlite3.connect(str(path), timeout=BUSY_TIMEOUT_SECONDS, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    # WAL keeps readers from blocking on writers; the mode is persisted per database file.
+    connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
     return connection
 
 
@@ -64,6 +70,11 @@ def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None
 def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     with closing(connect()) as connection:
         return [dict(row) for row in connection.execute(query, params).fetchall()]
+
+
+def ping() -> None:
+    """Raise if the database cannot be reached."""
+    fetch_one("SELECT 1 AS alive")
 
 
 def execute(query: str, params: tuple[Any, ...] = ()) -> int:
